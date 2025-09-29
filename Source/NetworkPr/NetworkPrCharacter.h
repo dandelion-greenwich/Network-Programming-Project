@@ -46,6 +46,9 @@ class ANetworkPrCharacter : public ACharacter
 
 public:
 	ANetworkPrCharacter();
+
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void ServerRPCFunction();
 	
 
 protected:

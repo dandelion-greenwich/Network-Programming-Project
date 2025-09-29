@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "Net/UnrealNetwork.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -52,6 +53,16 @@ ANetworkPrCharacter::ANetworkPrCharacter()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+}
+
+void ANetworkPrCharacter::ServerRPCFunction_Implementation()
+{
+	if (HasAuthority())
+	{
+		if (GEngine)
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Green,
+				TEXT("Server: ServerRPCFunction_Implementation"));
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
