@@ -4,6 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "Particles/ParticleSystem.h"
 #include "TestingBoxActor.generated.h"
 
 UCLASS()
@@ -36,4 +39,7 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable, BlueprintCallable)
 	void MulticastRPCFunction();
+
+	UPROPERTY(EditAnywhere)
+	UNiagaraSystem* ExplosionEffect;
 };

@@ -10,6 +10,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
@@ -57,6 +58,8 @@ ANetworkPrCharacter::ANetworkPrCharacter()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+
+
 void ANetworkPrCharacter::ServerRPCFunction_Implementation(int MyArg)
 {
 	if (!HasAuthority() || !Sphere)
@@ -68,7 +71,9 @@ void ANetworkPrCharacter::ServerRPCFunction_Implementation(int MyArg)
 			TEXT("Server: ServerRPCFunction_Implementation"));
 #endif
 
-	AStaticMeshActor* StaticMeshActor = GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass());
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.Owner = this;
+	AStaticMeshActor* StaticMeshActor = GetWorld()->SpawnActor<AStaticMeshActor>(SpawnParameters);
 	if (StaticMeshActor)
 	{
 		StaticMeshActor->SetReplicates(true);
@@ -85,6 +90,17 @@ void ANetworkPrCharacter::ServerRPCFunction_Implementation(int MyArg)
 			StaticMeshComponent->SetStaticMesh(Sphere);
 		}
 	}
+}
+
+void ANetworkPrCharacter::ClientRPCFunction_Implementation()
+{
+	if (NiagaraSystem)
+	{
+		FVector NewLocation = GetActorLocation();
+		UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), NiagaraSystem, NewLocation,
+			FRotator::ZeroRotator, FVector(1), true, true, ENCPoolMethod::AutoRelease);
+	}
+
 }
 
 bool ANetworkPrCharacter::ServerRPCFunction_Validate(int MyArg)
@@ -151,7 +167,7 @@ void ANetworkPrCharacter::Move(const FInputActionValue& Value)
 
 		// add movement 
 		AddMovementInput(ForwardDirection, MovementVector.Y);
-		AddMovementInput(RightDirection, MovementVector.X);
+		AddMovementInput(RightDirection, MovementVector.X); 
 	}
 }
 

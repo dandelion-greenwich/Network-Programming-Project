@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "NiagaraSystem.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "NetworkPrCharacter.generated.h"
@@ -49,8 +50,12 @@ public:
 
 	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable)
 	void ServerRPCFunction(int MyArg);
+	UFUNCTION(Client, Reliable, BlueprintCallable)
+	void ClientRPCFunction();
 	UPROPERTY(EditAnywhere)
 	UStaticMesh* Sphere;
+	UPROPERTY(EditAnywhere)
+	UNiagaraSystem* NiagaraSystem;
 	
 
 protected:

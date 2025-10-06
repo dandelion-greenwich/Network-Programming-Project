@@ -3,6 +3,7 @@
 
 #include "NetworkPr/Tinkering/TestingBoxActor.h"
 #include "Net/UnrealNetwork.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 ATestingBoxActor::ATestingBoxActor()
@@ -20,9 +21,10 @@ void ATestingBoxActor::BeginPlay()
 	
 	SetReplicates(true);
 	SetReplicateMovement(true);
-
+	
 	if (HasAuthority())
-		GetWorld()->GetTimerManager().SetTimer(TestTimer, this, &ATestingBoxActor::MulticastRPCFunction, 1.0f, false);
+		GetWorld()->GetTimerManager().SetTimer(TestTimer, this,
+			&ATestingBoxActor::MulticastRPCFunction, 1.0f, false);
 	
 }
 
@@ -31,14 +33,16 @@ void ATestingBoxActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	/*if (HasAuthority())
+#if 0
+	if (HasAuthority())
 	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, TEXT("Server"));
 	}
 	else
 	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Green, TEXT("Client"));	
-	}*/
+	}
+#endif
 }
 
 void ATestingBoxActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -84,13 +88,22 @@ void ATestingBoxActor::MulticastRPCFunction_Implementation()
 		if (GEngine)
 			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red,
 				TEXT("Server: MulticastRPCFunction_Implementation"));
-		GetWorld()->GetTimerManager().SetTimer(TestTimer, this, &ATestingBoxActor::MulticastRPCFunction, 1.0f, false);
+		
+		GetWorld()->GetTimerManager().SetTimer(TestTimer, this,
+			&ATestingBoxActor::MulticastRPCFunction, 1.0f, false);
 	}
 	else
 	{
 		if (GEngine)
 			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue,
 				TEXT("Client: MulticastRPCFunction_Implementation"));
+	}
+
+	if (!IsRunningDedicatedServer())
+	{
+		FVector NewLocation = GetActorLocation() + FVector(0, 0, 200.f);
+		UNiagaraComponent* NiagaraComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ExplosionEffect, NewLocation,
+			FRotator::ZeroRotator, FVector(1), true, true, ENCPoolMethod::AutoRelease);
 	}
 }
 
