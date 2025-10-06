@@ -33,4 +33,7 @@ public:
 
 	void DecreaseReplicatedVar();
 	FTimerHandle TestTimer;
+
+	UFUNCTION(NetMulticast, Reliable, BlueprintCallable)
+	void MulticastRPCFunction();
 };

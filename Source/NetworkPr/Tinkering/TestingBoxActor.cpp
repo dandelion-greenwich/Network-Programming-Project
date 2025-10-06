@@ -22,7 +22,7 @@ void ATestingBoxActor::BeginPlay()
 	SetReplicateMovement(true);
 
 	if (HasAuthority())
-		GetWorld()->GetTimerManager().SetTimer(TestTimer, this, &ATestingBoxActor::DecreaseReplicatedVar, 1.0f, false);
+		GetWorld()->GetTimerManager().SetTimer(TestTimer, this, &ATestingBoxActor::MulticastRPCFunction, 1.0f, false);
 	
 }
 
@@ -50,6 +50,7 @@ void ATestingBoxActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 void ATestingBoxActor::OnRep_ReplicatedVar()
 {
+#if 0
 	if (HasAuthority())
 	{
 		if (GEngine)
@@ -57,7 +58,7 @@ void ATestingBoxActor::OnRep_ReplicatedVar()
 				TEXT("Server: OnRep_ReplicatedVar"));
 
 		FVector NewLocation = GetActorLocation() + FVector(0, 0, 200);
-		//SetActorLocation(NewLocation);
+		SetActorLocation(NewLocation);
 	}
 	else
 	{
@@ -65,6 +66,7 @@ void ATestingBoxActor::OnRep_ReplicatedVar()
 			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue,
 				FString::Printf(TEXT("Client %d: OnRep_ReplicatedVar"), UE::GetPlayInEditorID()));
 	}
+#endif 
 }
 
 void ATestingBoxActor::DecreaseReplicatedVar()
@@ -73,5 +75,22 @@ void ATestingBoxActor::DecreaseReplicatedVar()
 	OnRep_ReplicatedVar();
 	if (ReplicatedVar > 0)
 			GetWorld()->GetTimerManager().SetTimer(TestTimer, this, &ATestingBoxActor::DecreaseReplicatedVar, 1.0f, false);
+}
+
+void ATestingBoxActor::MulticastRPCFunction_Implementation()
+{
+	if (HasAuthority())
+	{
+		if (GEngine)
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red,
+				TEXT("Server: MulticastRPCFunction_Implementation"));
+		GetWorld()->GetTimerManager().SetTimer(TestTimer, this, &ATestingBoxActor::MulticastRPCFunction, 1.0f, false);
+	}
+	else
+	{
+		if (GEngine)
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue,
+				TEXT("Client: MulticastRPCFunction_Implementation"));
+	}
 }
 

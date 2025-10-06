@@ -11,6 +11,8 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "Net/UnrealNetwork.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 
@@ -55,14 +57,41 @@ ANetworkPrCharacter::ANetworkPrCharacter()
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
-void ANetworkPrCharacter::ServerRPCFunction_Implementation()
+void ANetworkPrCharacter::ServerRPCFunction_Implementation(int MyArg)
 {
-	if (HasAuthority())
+	if (!HasAuthority() || !Sphere)
+		return;
+	
+#if 0
+	if (GEngine)
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Green,
+			TEXT("Server: ServerRPCFunction_Implementation"));
+#endif
+
+	AStaticMeshActor* StaticMeshActor = GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass());
+	if (StaticMeshActor)
 	{
-		if (GEngine)
-			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Green,
-				TEXT("Server: ServerRPCFunction_Implementation"));
+		StaticMeshActor->SetReplicates(true);
+		StaticMeshActor->SetReplicateMovement(true);
+		StaticMeshActor->SetMobility(EComponentMobility::Movable);
+		FVector SpawnLocation = GetActorLocation() + GetActorRotation().Vector() * 200.0f + GetActorUpVector() * 150.0f;
+		StaticMeshActor->SetActorLocation(SpawnLocation);
+
+		UStaticMeshComponent* StaticMeshComponent = StaticMeshActor->GetStaticMeshComponent();
+		if (StaticMeshComponent)
+		{
+			StaticMeshComponent->SetIsReplicated(true);
+			StaticMeshComponent->SetSimulatePhysics(true);
+			StaticMeshComponent->SetStaticMesh(Sphere);
+		}
 	}
+}
+
+bool ANetworkPrCharacter::ServerRPCFunction_Validate(int MyArg)
+{
+	if (MyArg >= 0 && MyArg <= 100)
+		return true;
+	return false;
 }
 
 //////////////////////////////////////////////////////////////////////////
