@@ -15,6 +15,8 @@ enum class EGameEventType : uint8
     DamageTaken,
     MeteorSpawn,
     MeteorHit,
+    PlayerPursuitStart,
+    PlayerPursuitStop,
     MatchEnd
 };
 

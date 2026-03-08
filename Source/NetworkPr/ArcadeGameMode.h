@@ -26,4 +26,9 @@ public:
 
 	FTimerHandle TimerHandle;
 	FOnStartMatch OnStartMatch;
+	
+	FTimerHandle PursuitCheckTimer;
+	void CheckPursuitState();
+	bool bP1IsPursuing; 
+	bool bP2IsPursuing;
 };

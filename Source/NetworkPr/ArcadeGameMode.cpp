@@ -42,6 +42,15 @@ void AArcadeGameMode::Logout(AController* Exiting)
 void AArcadeGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	bP1IsPursuing = false;
+	bP2IsPursuing = false;
+	GetWorldTimerManager().SetTimer(
+		PursuitCheckTimer,
+		this,
+		&AArcadeGameMode::CheckPursuitState,
+		0.2f,
+		true);
 	
 	UNetworkPrGameInstance* GI = Cast<UNetworkPrGameInstance>(GetGameInstance());
 	if (GI && GI->CurrentGameMode == EGameSessionMode::LocalCoop)
@@ -126,7 +135,62 @@ void AArcadeGameMode::GameOver(AActor* DeadPlayer)
 		FString MatchID = FDateTime::Now().ToString(TEXT("%d%m%Y_%H%M%S"));
 		MultiplayerSubsystem -> ExportToCSV(MatchID);
 	}
-	
+}
+
+// Logging event for playtesting session, will be removed afterwards
+void AArcadeGameMode::CheckPursuitState()
+{
+	ANetworkPrGameState* GS = GetGameState<ANetworkPrGameState>();
+
+    if (!GS -> Player1 || !GS -> Player2) return;
+
+    // Get necessary math vectors
+    FVector P1Loc = GS -> Player1->GetActorLocation();
+    FVector P2Loc = GS -> Player2->GetActorLocation();
+    
+    FVector P1VelocityDir = GS -> Player1->GetVelocity().GetSafeNormal();
+    FVector P2VelocityDir = GS -> Player2->GetVelocity().GetSafeNormal();
+
+    FVector DirP1ToP2 = (P2Loc - P1Loc).GetSafeNormal();
+    FVector DirP2ToP1 = (P1Loc - P2Loc).GetSafeNormal();
+
+    // Calculate Dot Products
+    float P1Dot = FVector::DotProduct(P1VelocityDir, DirP1ToP2);
+    float P2Dot = FVector::DotProduct(P2VelocityDir, DirP2ToP1);
+
+    // We consider it a "pursuit" if they are moving fast enough AND the dot product is > 0.7
+    float MinSpeed = 50.0f; // Ignore tiny stick nudges
+    bool bP1CurrentlyPursuing = (P1Dot > 0.7f) && (GS -> Player1->GetVelocity().Size() > MinSpeed);
+    bool bP2CurrentlyPursuing = (P2Dot > 0.7f) && (GS -> Player2->GetVelocity().Size() > MinSpeed);
+
+    UMultiplayerSubsystem* MS = GetGameInstance()->GetSubsystem<UMultiplayerSubsystem>();
+    float Time = GetWorld()->GetTimeSeconds();
+
+    // CHECK PLAYER 1 STATE CHANGES
+    // If they just STARTED pursuing
+    if (bP1CurrentlyPursuing && !bP1IsPursuing)
+    {
+        bP1IsPursuing = true;
+        if (MS) MS->LogEvent(Time, EGameEventType::PlayerPursuitStart, TEXT("Player1"), P1Loc, TEXT("Started chasing P2"));
+    }
+    // If they just STOPPED pursuing
+    else if (!bP1CurrentlyPursuing && bP1IsPursuing)
+    {
+        bP1IsPursuing = false;
+        if (MS) MS->LogEvent(Time, EGameEventType::PlayerPursuitStop, TEXT("Player1"), P1Loc, TEXT("Stopped chasing P2"));
+    }
+
+    // CHECK PLAYER 2 STATE CHANGES
+    if (bP2CurrentlyPursuing && !bP2IsPursuing)
+    {
+        bP2IsPursuing = true;
+        if (MS) MS->LogEvent(Time, EGameEventType::PlayerPursuitStart, TEXT("Player2"), P2Loc, TEXT("Started chasing P1"));
+    }
+    else if (!bP2CurrentlyPursuing && bP2IsPursuing)
+    {
+        bP2IsPursuing = false;
+        if (MS) MS->LogEvent(Time, EGameEventType::PlayerPursuitStop, TEXT("Player2"), P2Loc, TEXT("Stopped chasing P1"));
+    }
 }
 
 
