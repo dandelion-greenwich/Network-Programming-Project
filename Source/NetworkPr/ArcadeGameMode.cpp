@@ -98,13 +98,17 @@ void AArcadeGameMode::WaitForTheSecondPlayer()
 void AArcadeGameMode::ContinueGame()
 {
 	ANetworkPrGameState* GS = GetGameState<ANetworkPrGameState>();
-	if (GS) GS->Multicast_Play();
+	if (GS) GS -> Multicast_Play();
 }
 
 void AArcadeGameMode::GameOver(AActor* DeadPlayer)
 {
 	ANetworkPrGameState* GS = GetGameState<ANetworkPrGameState>();
-	if (GS) GS->Multicast_GameOver();
+	if (GS)
+	{
+		GS -> ServerRPC_SetAllPlayersToBeInvincible();
+		GS -> Multicast_GameOver();
+	}
 
 	// Logging Game End
 	UMultiplayerSubsystem* MultiplayerSubsystem = GetGameInstance()->GetSubsystem<UMultiplayerSubsystem>();

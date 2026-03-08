@@ -13,6 +13,8 @@ enum class EGameEventType : uint8
     PlayerPushSuccess,
     BeenPushedRecently,
     DamageTaken,
+    MeteorSpawn,
+    MeteorHit,
     MatchEnd
 };
 

@@ -41,6 +41,8 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_GameOver();
 	void GameOverTimer();
+	UFUNCTION(Server, Reliable)
+	void ServerRPC_SetAllPlayersToBeInvincible();
 	void SetFreezeTime(bool bFreeze);
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

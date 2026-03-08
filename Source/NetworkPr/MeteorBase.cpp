@@ -2,10 +2,11 @@
 
 
 #include "MeteorBase.h"
-
 #include "GameEventLog.h"
 #include "HealthComponent.h"
+#include "MultiplayerSubsystem.h"
 #include "NetworkPrCharacter.h"
+#include "NetworkPrGameState.h"
 #include "NiagaraFunctionLibrary.h"
 #include "Engine/OverlapResult.h"
 
@@ -69,6 +70,8 @@ void AMeteorBase::BeginPlay()
 			break;
 		}
 	}
+	// Logging event for playtesting session, will be removed afterwards
+	ServerRPC_LogEvent(EGameEventType::MeteorSpawn, "", GetActorLocation(), "");
 }
 
 void AMeteorBase::OnMeteorHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
@@ -77,8 +80,21 @@ void AMeteorBase::OnMeteorHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 	ServerRPC_Explosion_Implementation();
 }
 
+void AMeteorBase::ServerRPC_LogEvent_Implementation(EGameEventType GameType, const FString& PlayerNumber,
+	FVector Location, const FString& ExtraData)
+{
+	float GameTime = GetWorld()->GetTimeSeconds();
+	
+	UMultiplayerSubsystem* MultiplayerSubsystem = GetGameInstance()->GetSubsystem<UMultiplayerSubsystem>();
+	if (MultiplayerSubsystem)
+		MultiplayerSubsystem -> LogEvent(GameTime, GameType, PlayerNumber, Location, ExtraData);
+}
+
 void AMeteorBase::ServerRPC_Explosion_Implementation()
 {
+	// Logging event for playtesting session, will be removed afterwards
+	ServerRPC_LogEvent(EGameEventType::MeteorHit, "", GetActorLocation(), "");
+	
 	FVector StartVector = MeteorComp -> GetComponentLocation();
 	FQuat SphereRotation = FQuat::Identity;
 	FCollisionShape SphereShape = FCollisionShape::MakeSphere(AttackSphereRadius);
@@ -109,17 +125,25 @@ void AMeteorBase::ServerRPC_Explosion_Implementation()
 			Player -> ClientRpc_ShakeCamera();
 			float DistanceDifference = FVector::Dist(StartVector, HitActor->GetActorLocation());
 
+			// Logging event for playtesting session, will be removed afterwards
+			FString PlayerNumber;
+			ANetworkPrGameState* GS = GetWorld()->GetGameState<ANetworkPrGameState>();
+			if (GS && GS -> Player1 == Player)
+				PlayerNumber = "Player1";
+			else if (GS && GS -> Player2 == Player)
+				PlayerNumber = "Player2";
+
 			if (DistanceDifference > AttackSphereRadius / 2)
 			{
-				Player -> HealthComp -> TakeDamage(0.5f, EDamageType::Explosion);
 				// Logging event for playtesting session, will be removed afterwards
-				Player -> ServerRPC_LogEvent(EGameEventType::DamageTaken, "Player1", FVector::ZeroVector, "Explosion: 0.5");
+				ServerRPC_LogEvent(EGameEventType::DamageTaken, PlayerNumber, GetActorLocation(), "Explosion: 0.5");
+				Player -> HealthComp -> TakeDamage(0.5f, EDamageType::Explosion);
 			}
 			else
 			{
-				Player -> HealthComp -> TakeDamage(1.f, EDamageType::Explosion);
 				// Logging event for playtesting session, will be removed afterwards
-				Player -> ServerRPC_LogEvent(EGameEventType::DamageTaken, "Player1", FVector::ZeroVector, "Explosion: 1");
+				ServerRPC_LogEvent(EGameEventType::DamageTaken, PlayerNumber, GetActorLocation(), "Explosion: 1");
+				Player -> HealthComp -> TakeDamage(1.f, EDamageType::Explosion);
 			}
 		}
 	}

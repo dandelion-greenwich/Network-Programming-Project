@@ -2,6 +2,7 @@
 
 #include "NetworkPrGameState.h"
 #include "ArcadeGameMode.h"
+#include "HealthComponent.h"
 #include "NetworkPrPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
@@ -83,12 +84,15 @@ void ANetworkPrGameState::Multicast_Play_Implementation()
 
 void ANetworkPrGameState::Multicast_GameOver_Implementation()
 {
+	// Slows down time before complete freeze
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.3f);
+
 	CurrentGameState = EGameState::GameOver;
 	GetWorld()->GetTimerManager().SetTimer(
 	TimerHandle,                
 	this,                       
 	&ANetworkPrGameState::GameOverTimer,
-	0.2,                        
+	1.0,                        
 	false,                       
 	-1.0);
 }
@@ -96,7 +100,12 @@ void ANetworkPrGameState::Multicast_GameOver_Implementation()
 void ANetworkPrGameState::GameOverTimer()
 {
 	SetFreezeTime(true);
-	// TODO: Data saving related functionality
+}
+
+void ANetworkPrGameState::ServerRPC_SetAllPlayersToBeInvincible_Implementation()
+{
+	Player1 -> HealthComp -> bIsInvincible = true;
+	Player2 -> HealthComp -> bIsInvincible = true;
 }
 
 void ANetworkPrGameState::SetFreezeTime(bool bFreeze)

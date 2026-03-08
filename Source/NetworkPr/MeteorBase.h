@@ -41,4 +41,6 @@ public:
 	void ServerRPC_Explosion();
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_ExplosionVFX();
+	UFUNCTION(Server, Reliable)
+	void ServerRPC_LogEvent(EGameEventType GameType, const FString& PlayerNumber, FVector Location, const FString& ExtraData);
 };

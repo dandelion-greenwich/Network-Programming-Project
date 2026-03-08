@@ -3,9 +3,7 @@
 
 #include "HealthComponent.h"
 #include "ArcadeGameMode.h"
-#include "GameEventLog.h"
 #include "NetworkPrCharacter.h"
-#include "NetworkPrGameState.h"
 #include "Net/UnrealNetwork.h"
 
 

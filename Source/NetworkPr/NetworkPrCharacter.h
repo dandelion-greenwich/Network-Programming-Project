@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "NiagaraComponent.h"
-#include "NiagaraSystem.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
 #include "Camera/CameraShakeBase.h"

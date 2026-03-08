@@ -2,7 +2,6 @@
 
 
 #include "KillZone.h"
-
 #include "GameEventLog.h"
 #include "NetworkPrCharacter.h"
 #include "HealthComponent.h"
@@ -47,14 +46,14 @@ void AKillZone::OnColliderOverlap(UPrimitiveComponent* OverlappedComponent, AAct
 	ANetworkPrCharacter* MyCharacter = Cast<ANetworkPrCharacter>(OtherActor);
 	if (MyCharacter)MyCharacter -> RespawnPlayer();
 
-	UHealthComponent* HealthComp = OtherActor -> FindComponentByClass<UHealthComponent>();
-	if (HealthComp) HealthComp -> TakeDamage(1.0f, EDamageType::Fall);
-
 	// Logging event for playtesting session, will be removed afterwards
 	ANetworkPrGameState* GS = GetWorld()->GetGameState<ANetworkPrGameState>();
 	if (GS && GS -> Player1 == MyCharacter && MyCharacter)
 		MyCharacter -> ServerRPC_LogEvent(EGameEventType::DamageTaken, "Player1", FVector::ZeroVector, "Fall: 1");
 	else if (GS && GS -> Player2 == MyCharacter && MyCharacter)
 		MyCharacter -> ServerRPC_LogEvent(EGameEventType::DamageTaken, "Player2", FVector::ZeroVector, "Fall: 1");
+	
+	UHealthComponent* HealthComp = OtherActor -> FindComponentByClass<UHealthComponent>();
+	if (HealthComp) HealthComp -> TakeDamage(1.0f, EDamageType::Fall);
 }
 
