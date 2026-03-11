@@ -31,4 +31,6 @@ public:
 	void CheckPursuitState();
 	bool bP1IsPursuing; 
 	bool bP2IsPursuing;
+	float P1LastPursuitTime;
+	float P2LastPursuitTime;
 };
