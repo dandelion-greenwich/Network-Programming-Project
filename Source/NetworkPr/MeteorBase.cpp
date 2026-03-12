@@ -22,8 +22,7 @@ AMeteorBase::AMeteorBase()
 	
 	MeteorComp = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComp"));
 	MeteorComp -> SetupAttachment(RootComp);
-	
-	MeteorComp->SetSimulatePhysics(true);
+	MeteorComp -> SetVisibility(false);
 	MeteorComp->SetNotifyRigidBodyCollision(true); 
 	MeteorComp->SetCollisionProfileName(TEXT("PhysicsActor"));
 	MeteorComp->OnComponentHit.AddDynamic(this, &AMeteorBase::OnMeteorHit);
@@ -70,6 +69,13 @@ void AMeteorBase::BeginPlay()
 			break;
 		}
 	}
+	
+	GetWorld()->GetTimerManager().SetTimer(
+	TimerHandle,
+	this,
+	&AMeteorBase::Multicast_DropMeteor,
+	0.5,false);
+	
 	// Logging event for playtesting session, will be removed afterwards
 	ServerRPC_LogEvent(EGameEventType::MeteorSpawn, "", GetActorLocation(), "");
 }
@@ -80,8 +86,14 @@ void AMeteorBase::OnMeteorHit(UPrimitiveComponent* HitComponent, AActor* OtherAc
 	ServerRPC_Explosion_Implementation();
 }
 
+void AMeteorBase::Multicast_DropMeteor_Implementation()
+{
+	MeteorComp -> SetVisibility(true);
+	MeteorComp -> SetSimulatePhysics(true);
+}
+
 void AMeteorBase::ServerRPC_LogEvent_Implementation(EGameEventType GameType, const FString& PlayerNumber,
-	FVector Location, const FString& ExtraData)
+                                                    FVector Location, const FString& ExtraData)
 {
 	float GameTime = GetWorld()->GetTimeSeconds();
 	
