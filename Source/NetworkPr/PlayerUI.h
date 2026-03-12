@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "Components/ProgressBar.h"
 #include "PlayerUI.generated.h"
@@ -28,6 +29,8 @@ public:
 	UProgressBar* Player1HealthBar;
 	UPROPERTY(meta = (BindWidget))
 	UProgressBar* Player2HealthBar;
+	UPROPERTY(meta = (BindWidget))
+	UButton* ReturnToMainMenuButton;
 	
 	UFUNCTION(BlueprintCallable) // Made it callable just in case
 	void UpdateHealth(AActor* Player, float NewHealth);

@@ -2,6 +2,7 @@
 
 #include "PlayerUI.h"
 #include "NetworkPrGameState.h"
+#include "Kismet/GameplayStatics.h"
 
 void UPlayerUI::UpdateHealth(AActor* Player, float NewHealth)
 {
@@ -34,4 +35,12 @@ void UPlayerUI::SetGameOverText(AActor* DeadPlayer)
         GameOverText->SetText(FText::FromString("Player 2 win!!!"));
     else if (DeadPlayer == GS->Player2)
         GameOverText->SetText(FText::FromString("Player 1 win!!!"));
+
+    ReturnToMainMenuButton -> SetVisibility(ESlateVisibility::Visible);
+    APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    if (PC)
+    {
+        PC -> SetInputMode(FInputModeUIOnly());
+        PC -> SetShowMouseCursor(true);
+    }
 }
