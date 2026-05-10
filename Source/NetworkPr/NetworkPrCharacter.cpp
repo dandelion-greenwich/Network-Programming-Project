@@ -151,13 +151,6 @@ void ANetworkPrCharacter::ServerRPC_Attack_Implementation()
 	CanPush = false;
 
 	Multicast_PushVFX();
-
-	// Logging event for playtesting session, will be removed afterwards
-	ANetworkPrGameState* GS = GetWorld()->GetGameState<ANetworkPrGameState>();
-	if (GS && GS -> Player1 == this)
-		ServerRPC_LogEvent(EGameEventType::PlayerPushAttempt, "Player1", GetActorLocation(), "");
-	else if (GS && GS -> Player2 == this)
-		ServerRPC_LogEvent(EGameEventType::PlayerPushAttempt, "Player2", GetActorLocation(), "");
 	
 	GetWorld()->GetTimerManager().SetTimer(
 	TimerHandle,                
@@ -206,16 +199,6 @@ void ANetworkPrCharacter::ServerRPC_Attack_Implementation()
 		FVector LaunchVelocity = GetActorForwardVector() * 1000.f; 
 		LaunchVelocity.Z += 500.f; // Add a little jump
 		Character->LaunchCharacter(LaunchVelocity, true, true);
-		
-		// Logging event for playtesting session, will be removed afterwards
-		if (GS && GS -> Player1 == this)
-			ServerRPC_LogEvent(EGameEventType::PlayerPushSuccess, "Player1", GetActorLocation(), "");
-		else if (GS && GS -> Player2 == this)
-			ServerRPC_LogEvent(EGameEventType::PlayerPushSuccess, "Player2", GetActorLocation(), "");
-		if (GS && GS -> Player1 == Character)
-			ServerRPC_LogEvent(EGameEventType::BeenPushedRecently, "Player1", GetActorLocation(), "");
-		else if (GS && GS -> Player2 == Character)
-			ServerRPC_LogEvent(EGameEventType::BeenPushedRecently, "Player2", GetActorLocation(), "");
 	}
 }
 
@@ -227,15 +210,6 @@ void ANetworkPrCharacter::RespawnPlayer()
 void ANetworkPrCharacter::ResetPush()
 {
 	CanPush = true;
-}
-
-void ANetworkPrCharacter::ServerRPC_LogEvent_Implementation(EGameEventType GameType, const FString& PlayerNumber, FVector Location, const FString& ExtraData)
-{
-	float GameTime = GetWorld()->GetTimeSeconds();
-	
-	UMultiplayerSubsystem* MultiplayerSubsystem = GetGameInstance()->GetSubsystem<UMultiplayerSubsystem>();
-	if (MultiplayerSubsystem)
-		MultiplayerSubsystem -> LogEvent(GameTime, GameType, PlayerNumber, Location, ExtraData);
 }
 
 void ANetworkPrCharacter::Multicast_SetDefaultMaterial_Implementation()
@@ -338,10 +312,4 @@ void ANetworkPrCharacter::Look(const FInputActionValue& Value)
 void ANetworkPrCharacter::Jump()
 {
 	Super::Jump();
-
-	ANetworkPrGameState* GS = GetWorld()->GetGameState<ANetworkPrGameState>();
-	if (GS && GS -> Player1 == this)
-		ServerRPC_LogEvent(EGameEventType::PlayerJump, "Player1", GetActorLocation(), "");
-	else if (GS && GS -> Player2 == this)
-		ServerRPC_LogEvent(EGameEventType::PlayerJump, "Player2", GetActorLocation(), "");
 }

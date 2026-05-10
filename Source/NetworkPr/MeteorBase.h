@@ -42,8 +42,6 @@ public:
 	void Multicast_DropMeteor();
 	UFUNCTION(Server, Reliable, BlueprintCallable)
 	void ServerRPC_Explosion();
-	UFUNCTION(NetMulticast, Unreliable)
+	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_ExplosionVFX();
-	UFUNCTION(Server, Reliable)
-	void ServerRPC_LogEvent(EGameEventType GameType, const FString& PlayerNumber, FVector Location, const FString& ExtraData);
 };
