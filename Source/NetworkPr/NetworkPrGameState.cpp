@@ -102,8 +102,10 @@ void ANetworkPrGameState::GameOverTimer()
 	SetFreezeTime(true);
 }
 
-void ANetworkPrGameState::ServerRPC_SetAllPlayersToBeInvincible_Implementation()
+void ANetworkPrGameState::SetAllPlayersToBeInvincible()
 {
+	if (!HasAuthority()) return;
+
 	Player1 -> HealthComp -> bIsInvincible = true;
 	Player2 -> HealthComp -> bIsInvincible = true;
 }

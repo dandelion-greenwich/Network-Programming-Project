@@ -122,9 +122,9 @@ void ANetworkPrCharacter::SetCamera()
 
 void ANetworkPrCharacter::ClientRpc_ShakeCamera_Implementation()
 {
-	if (IsPlayerControlled()) 
+	if (IsPlayerControlled())
 	{
-		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+		APlayerController* PC = Cast<APlayerController>(GetController());
 
 		if (PC && PC->PlayerCameraManager)
 		{
@@ -210,6 +210,16 @@ void ANetworkPrCharacter::RespawnPlayer()
 void ANetworkPrCharacter::ResetPush()
 {
 	CanPush = true;
+}
+
+void ANetworkPrCharacter::ApplyHitMaterial()
+{
+	Multicast_SetHitMaterial();
+}
+
+void ANetworkPrCharacter::ApplyDefaultMaterial()
+{
+	Multicast_SetDefaultMaterial();
 }
 
 void ANetworkPrCharacter::Multicast_SetDefaultMaterial_Implementation()

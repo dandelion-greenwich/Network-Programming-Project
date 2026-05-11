@@ -102,7 +102,7 @@ void AArcadeGameMode::GameOver(AActor* DeadPlayer)
 	ANetworkPrGameState* GS = GetGameState<ANetworkPrGameState>();
 	if (GS)
 	{
-		GS -> ServerRPC_SetAllPlayersToBeInvincible();
+		GS -> SetAllPlayersToBeInvincible();
 		GS -> Multicast_GameOver();
 	}
 }

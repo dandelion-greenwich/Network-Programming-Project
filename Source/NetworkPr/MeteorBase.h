@@ -40,8 +40,7 @@ public:
 	void OnMeteorHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_DropMeteor();
-	UFUNCTION(Server, Reliable, BlueprintCallable)
-	void ServerRPC_Explosion();
+	void Explosion();
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_ExplosionVFX();
 };

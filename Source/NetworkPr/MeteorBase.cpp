@@ -79,7 +79,7 @@ void AMeteorBase::BeginPlay()
 void AMeteorBase::OnMeteorHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
 	FVector NormalImpulse, const FHitResult& Hit)
 {
-	ServerRPC_Explosion_Implementation();
+	Explosion();
 }
 
 void AMeteorBase::Multicast_DropMeteor_Implementation()
@@ -88,7 +88,7 @@ void AMeteorBase::Multicast_DropMeteor_Implementation()
 	MeteorComp -> SetSimulatePhysics(true);
 }
 
-void AMeteorBase::ServerRPC_Explosion_Implementation()
+void AMeteorBase::Explosion()
 {
 	FVector StartVector = MeteorComp -> GetComponentLocation();
 	FQuat SphereRotation = FQuat::Identity;
