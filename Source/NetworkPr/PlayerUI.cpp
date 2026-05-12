@@ -36,11 +36,18 @@ void UPlayerUI::SetGameOverText(AActor* DeadPlayer)
     else if (DeadPlayer == GS->Player2)
         GameOverText->SetText(FText::FromString("Player 1 win!!!"));
 
-    ReturnToMainMenuButton -> SetVisibility(ESlateVisibility::Visible);
     APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
     if (PC)
     {
         PC -> SetInputMode(FInputModeUIOnly());
         PC -> SetShowMouseCursor(true);
     }
+
+    GS -> OnGameOver.BindUObject(this, &UPlayerUI::SetGameOverButton);
+}
+
+void UPlayerUI::SetGameOverButton()
+{
+    ReturnToMainMenuButton -> SetVisibility(ESlateVisibility::Visible);
+    ReturnToMainMenuButton -> SetKeyboardFocus();
 }

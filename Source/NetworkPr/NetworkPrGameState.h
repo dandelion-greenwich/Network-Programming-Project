@@ -7,6 +7,8 @@
 #include "NetworkPrCharacter.h"
 #include "NetworkPrGameState.generated.h"
 
+DECLARE_DELEGATE(FOnGameOver);
+
 UENUM()
 enum class EGameState : uint8
 {
@@ -26,6 +28,7 @@ public:
 	FTimerHandle TimerHandle;
 	UPROPERTY(Replicated)
 	EGameState CurrentGameState;
+	FOnGameOver OnGameOver;
 	UPROPERTY(Replicated)
 	ANetworkPrCharacter* Player1;
 	UPROPERTY(Replicated)
@@ -41,8 +44,7 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_GameOver();
 	void GameOverTimer();
-	UFUNCTION(Server, Reliable)
-	void ServerRPC_SetAllPlayersToBeInvincible();
+	void SetAllPlayersToBeInvincible();
 	void SetFreezeTime(bool bFreeze);
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

@@ -35,7 +35,7 @@ public:
 	int32 MaxHealth;
 	UPROPERTY(ReplicatedUsing=OnRep_Health, EditAnywhere, Category = "Health")
 	float CurrentHealth;
-	UPROPERTY(ReplicatedUsing=OnRep_Health, EditAnywhere, Category = "Health")
+	UPROPERTY(ReplicatedUsing=OnRep_Invincible, EditAnywhere, Category = "Health")
 	bool bIsInvincible;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
 	float InvincibleResetTimer;

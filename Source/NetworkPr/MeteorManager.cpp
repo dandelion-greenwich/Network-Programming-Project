@@ -41,7 +41,7 @@ void AMeteorManager::SpawnMeteorTimer()
 		-1.0);
 }
 
-void AMeteorManager::SpawnMeteor_Implementation()
+void AMeteorManager::SpawnMeteor()
 {
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.Owner = this;

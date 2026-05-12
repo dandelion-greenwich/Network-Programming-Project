@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameEventLog.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "OnlineSubsystem.h"
 #include "Interfaces/OnlineSessionInterface.h"
@@ -57,9 +56,4 @@ public:
 	FServerCreateDelegate ServerCreateDel;
 	UPROPERTY(BlueprintAssignable)
 	FServerJoinDelegate ServerJoinDel;
-
-	// Data collection
-	TArray<FGameEventLog> MatchEvents;
-	void LogEvent(float CurrentTime, EGameEventType Type, FString Instigator, FVector Location, FString ExtraData);
-	void ExportToCSV(FString MatchID);
 };

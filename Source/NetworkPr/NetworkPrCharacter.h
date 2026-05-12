@@ -55,8 +55,8 @@ public:
 	void Multicast_SetHitMaterial();
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_SetDefaultMaterial();
-	UFUNCTION(Server, Reliable)
-	void ServerRPC_LogEvent(EGameEventType GameType, const FString& PlayerNumber, FVector Location, const FString& ExtraData);
+	void ApplyHitMaterial();
+	void ApplyDefaultMaterial();
 
 	FTimerHandle TimerHandle; // Timer for PC to load
 	UPROPERTY(BlueprintReadWrite, Category = "Class")
@@ -88,4 +88,3 @@ protected:
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 };
-

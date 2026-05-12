@@ -30,7 +30,6 @@ public:
 	UPROPERTY(EditAnywhere)
 	float ExplosionRadius;
 	
-	UFUNCTION(Server, Reliable, BlueprintCallable)
 	void SpawnMeteor();
 	UFUNCTION()
 	void SpawnMeteorTimer();

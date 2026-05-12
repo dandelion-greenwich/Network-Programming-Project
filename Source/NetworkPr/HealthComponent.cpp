@@ -4,6 +4,7 @@
 #include "HealthComponent.h"
 #include "ArcadeGameMode.h"
 #include "NetworkPrCharacter.h"
+#include "NetworkPrGameState.h"
 #include "Net/UnrealNetwork.h"
 
 
@@ -58,7 +59,9 @@ void UHealthComponent::TakeDamage(float DamageAmount, EDamageType DamageType)
 	{
 		bIsInvincible = true;
 		OnRep_Invincible();
-		if (Player) Player -> Multicast_SetHitMaterial();
+		GetWorld()->GetTimerManager().SetTimer(
+			TimerHandle, this, &UHealthComponent::InvincibleTimer,
+			InvincibleResetTimer, false, -1.0);
 	}
 	OnRep_Health(); // Update Server UI manually
 }
@@ -67,6 +70,7 @@ void UHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(UHealthComponent, CurrentHealth);
+	DOREPLIFETIME(UHealthComponent, bIsInvincible);
 }
 
 void UHealthComponent::OnRep_Health()
@@ -83,13 +87,12 @@ void UHealthComponent::OnRep_Health()
 
 void UHealthComponent::OnRep_Invincible()
 {
-	GetWorld()->GetTimerManager().SetTimer(
-	TimerHandle,                
-	this,                       
-	&UHealthComponent::InvincibleTimer,
-	InvincibleResetTimer,                        
-	false,                       
-	-1.0);
+	ANetworkPrCharacter* Player = Cast<ANetworkPrCharacter>(GetOwner());
+	ANetworkPrGameState* GS = GetWorld() -> GetGameState<ANetworkPrGameState>();
+	if (!Player || !GS) return;
+	
+	if (bIsInvincible && GS -> CurrentGameState != EGameState::GameOver)
+		Player->ApplyHitMaterial();
 }
 
 void UHealthComponent::InvincibleTimer()

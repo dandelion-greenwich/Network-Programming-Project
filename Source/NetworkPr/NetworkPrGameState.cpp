@@ -99,11 +99,14 @@ void ANetworkPrGameState::Multicast_GameOver_Implementation()
 
 void ANetworkPrGameState::GameOverTimer()
 {
+	OnGameOver.ExecuteIfBound();
 	SetFreezeTime(true);
 }
 
-void ANetworkPrGameState::ServerRPC_SetAllPlayersToBeInvincible_Implementation()
+void ANetworkPrGameState::SetAllPlayersToBeInvincible()
 {
+	if (!HasAuthority()) return;
+
 	Player1 -> HealthComp -> bIsInvincible = true;
 	Player2 -> HealthComp -> bIsInvincible = true;
 }
