@@ -7,6 +7,8 @@
 #include "NetworkPrCharacter.h"
 #include "NetworkPrGameState.generated.h"
 
+DECLARE_DELEGATE(FOnGameOver);
+
 UENUM()
 enum class EGameState : uint8
 {
@@ -26,6 +28,7 @@ public:
 	FTimerHandle TimerHandle;
 	UPROPERTY(Replicated)
 	EGameState CurrentGameState;
+	FOnGameOver OnGameOver;
 	UPROPERTY(Replicated)
 	ANetworkPrCharacter* Player1;
 	UPROPERTY(Replicated)

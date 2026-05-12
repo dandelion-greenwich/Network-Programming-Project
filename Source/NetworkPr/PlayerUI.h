@@ -31,10 +31,11 @@ public:
 	UProgressBar* Player2HealthBar;
 	UPROPERTY(meta = (BindWidget))
 	UButton* ReturnToMainMenuButton;
-	
+
 	UFUNCTION(BlueprintCallable) // Made it callable just in case
 	void UpdateHealth(AActor* Player, float NewHealth);
 	void RemoveWaitingText();
 	UFUNCTION()
 	void SetGameOverText(AActor* DeadPlayer);
+	void SetGameOverButton();
 };

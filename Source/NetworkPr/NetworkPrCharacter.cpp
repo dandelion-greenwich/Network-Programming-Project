@@ -124,7 +124,7 @@ void ANetworkPrCharacter::ClientRpc_ShakeCamera_Implementation()
 {
 	if (IsPlayerControlled())
 	{
-		APlayerController* PC = Cast<APlayerController>(GetController());
+		APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 
 		if (PC && PC->PlayerCameraManager)
 		{
