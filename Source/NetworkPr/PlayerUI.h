@@ -18,7 +18,7 @@ class NETWORKPR_API UPlayerUI : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	
+
 	// The meta tag for a widget in the Blueprint needs to be named EXACTLY
     // If it's named differently, the game will crash
 	UPROPERTY(meta = (BindWidget))
@@ -38,4 +38,9 @@ public:
 	UFUNCTION()
 	void SetGameOverText(AActor* DeadPlayer);
 	void SetGameOverButton();
+
+protected:
+	virtual void NativeConstruct() override;
+	UFUNCTION()
+	void OnReturnToMainMenuClicked();
 };

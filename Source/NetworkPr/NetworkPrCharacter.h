@@ -57,6 +57,8 @@ public:
 	void Multicast_SetDefaultMaterial();
 	void ApplyHitMaterial();
 	void ApplyDefaultMaterial();
+	UFUNCTION()
+	void OnRep_DefaultMaterial();
 
 	FTimerHandle TimerHandle; // Timer for PC to load
 	UPROPERTY(BlueprintReadWrite, Category = "Class")
@@ -79,6 +81,7 @@ public:
 	UMaterialInterface* Player1Material;
 	UPROPERTY(EditAnywhere, Category = "Class")
 	UMaterialInterface* Player2Material;
+	UPROPERTY(ReplicatedUsing = OnRep_DefaultMaterial)
 	UMaterialInterface* DefaultMaterial;
 
 protected:
@@ -87,4 +90,5 @@ protected:
 	virtual void Jump() override;
 	virtual void NotifyControllerChanged() override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

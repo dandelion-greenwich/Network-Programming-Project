@@ -14,6 +14,9 @@
 #include "HealthComponent.h"
 #include "MultiplayerSubsystem.h"
 #include "NetworkPrGameState.h"
+#include "ArcadeGameMode.h"
+#include "GameFramework/PlayerStart.h"
+#include "Net/UnrealNetwork.h"
 
 
 DEFINE_LOG_CATEGORY(LogTemplateCharacter);
@@ -66,22 +69,9 @@ void ANetworkPrCharacter::Tick(float DeltaSeconds)
 void ANetworkPrCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	RespawnPos = GetActorLocation();
 	DefaultMaterial = GetMesh() -> GetMaterial(0);
-	
-	if (!HasAuthority()) return;
-	
-	ANetworkPrGameState* GS = GetWorld()->GetGameState<ANetworkPrGameState>();
-	if (!GS) return;
-	GS->RegisterPlayer(this);
-	
-	if (this == GS -> Player1 && Player1Material)
-		DefaultMaterial = Player1Material;
-	else if (this == GS -> Player2 && Player2Material)
-		DefaultMaterial = Player2Material;
-	
-	Multicast_SetDefaultMaterial();
 }
 
 void ANetworkPrCharacter::PrintString(const FString& String) 
@@ -93,6 +83,37 @@ void ANetworkPrCharacter::PrintString(const FString& String)
 void ANetworkPrCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
+
+	if (HasAuthority())
+	{
+		if (AArcadeGameMode* GM = GetWorld()->GetAuthGameMode<AArcadeGameMode>())
+		{
+			const int32 Slot = GM->GetPlayerSlot(NewController);
+			if (Slot != INDEX_NONE)
+			{
+				const FName Tag(*FString::FromInt(Slot));
+				TArray<AActor*> Starts;
+				UGameplayStatics::GetAllActorsOfClassWithTag(this, APlayerStart::StaticClass(), Tag, Starts);
+				if (Starts.Num() > 0)
+				{
+					const FVector NewLoc = Starts[0]->GetActorLocation();
+					const FRotator NewRot = Starts[0]->GetActorRotation();
+					SetActorLocationAndRotation(NewLoc, NewRot);
+					RespawnPos = NewLoc;
+				}
+			}
+		}
+
+		if (ANetworkPrGameState* GS = GetWorld()->GetGameState<ANetworkPrGameState>())
+		{
+			GS->RegisterPlayer(this);
+
+			if (this == GS->Player1 && Player1Material) DefaultMaterial = Player1Material;
+			else if (this == GS->Player2 && Player2Material) DefaultMaterial = Player2Material;
+
+			Multicast_SetDefaultMaterial();
+		}
+	}
 
 	GetWorld()->GetTimerManager().SetTimer(
 		TimerHandle,
@@ -222,6 +243,12 @@ void ANetworkPrCharacter::ApplyDefaultMaterial()
 	Multicast_SetDefaultMaterial();
 }
 
+void ANetworkPrCharacter::OnRep_DefaultMaterial()
+{
+	if (DefaultMaterial && GetMesh())
+		GetMesh()->SetMaterial(0, DefaultMaterial);
+}
+
 void ANetworkPrCharacter::Multicast_SetDefaultMaterial_Implementation()
 {
 	if (DefaultMaterial && GetMesh())
@@ -234,7 +261,6 @@ void ANetworkPrCharacter::Multicast_SetHitMaterial_Implementation()
 		GetMesh()->SetMaterial(0, HitMaterial);
 }
 
-
 void ANetworkPrCharacter::Multicast_PushVFX_Implementation()
 {
 	if (AttackMontage) PlayAnimMontage(AttackMontage);
@@ -244,6 +270,12 @@ void ANetworkPrCharacter::Multicast_PushVFX_Implementation()
 		PushEffect -> Deactivate();
 		PushEffect -> Activate();
 	}
+}
+
+void ANetworkPrCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ANetworkPrCharacter, DefaultMaterial);
 }
 
 //////////////////////////////////////////////////////////////////////////

@@ -18,27 +18,32 @@ void ANetworkPrGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 
 void ANetworkPrGameState::RegisterPlayer(ANetworkPrCharacter* NewPlayer)
 {
-	if (!HasAuthority()) return;
-	
-	if (!Player1)
-	{
-		Player1 = NewPlayer;
-		AArcadeGameMode* GM = GetWorld()->GetAuthGameMode<AArcadeGameMode>();
-		if (GM) GM -> WaitForTheSecondPlayer();
-	}
-	else if (!Player2 && NewPlayer != Player1)
-	{
-		Player2 = NewPlayer;
-		AArcadeGameMode* GM = GetWorld()->GetAuthGameMode<AArcadeGameMode>();
-		if (GM) GM -> ContinueGame();
+	if (!HasAuthority() || !NewPlayer) return;
 
+	AArcadeGameMode* GM = GetWorld()->GetAuthGameMode<AArcadeGameMode>();
+	if (!GM) return;
+
+	const int32 Slot = GM->GetPlayerSlot(NewPlayer->GetController());
+
+	if (Slot == 1)
+		Player1 = NewPlayer;
+	else if (Slot == 2)
+		Player2 = NewPlayer;
+	else return;
+
+	if (Player1 && !Player2)
+	{
+		GM->WaitForTheSecondPlayer();
+	}
+	else if (Player1 && Player2)
+	{
+		GM->ContinueGame();
 		GetWorld()->GetTimerManager().SetTimer(
-		TimerHandle,                
-		this,                       
-		&ANetworkPrGameState::TimerToLoadPCToRemoveWaitingUI,
-		0.5,                        
-		false,                       
-		-1.0);
+			TimerHandle,
+			this,
+			&ANetworkPrGameState::TimerToLoadPCToRemoveWaitingUI,
+			0.5f,
+			false);
 	}
 }
 
@@ -71,15 +76,6 @@ void ANetworkPrGameState::Multicast_Play_Implementation()
 {
 	CurrentGameState = EGameState::Playing;
 	SetFreezeTime(false);
-
-	if (Player1 && Player2)
-	{
-		Player1 -> DefaultMaterial = Player1 -> Player1Material;
-		Player1 -> Multicast_SetDefaultMaterial();
-
-		Player2 -> DefaultMaterial = Player2 ->Player2Material;
-		Player2 -> Multicast_SetDefaultMaterial();
-	}
 }
 
 void ANetworkPrGameState::Multicast_GameOver_Implementation()

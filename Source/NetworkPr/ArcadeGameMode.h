@@ -17,6 +17,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void OnPostLogin(AController* NewPlayer) override;
 	virtual void Logout(AController* Exiting) override;
+	UFUNCTION(BlueprintCallable)
+	int32 GetPlayerSlot(AController* Player) const;
 
 	void AddSecondLocalPlayer();
 	void TryToStartMatch();

@@ -45,8 +45,7 @@ void ANetworkPrPlayerController::TryInitialiseUI()
 			bP1Bound = true;
 		}
 	}
-
-		
+	
 	if (!bP2Bound && GS->Player2)
 	{
 		UHealthComponent* HealthComp = GS->Player2->FindComponentByClass<UHealthComponent>();

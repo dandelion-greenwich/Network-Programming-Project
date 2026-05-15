@@ -51,3 +51,18 @@ void UPlayerUI::SetGameOverButton()
     ReturnToMainMenuButton -> SetVisibility(ESlateVisibility::Visible);
     ReturnToMainMenuButton -> SetKeyboardFocus();
 }
+
+void UPlayerUI::NativeConstruct()
+{
+    Super::NativeConstruct();
+
+    if (ReturnToMainMenuButton)
+    {
+        ReturnToMainMenuButton->OnClicked.AddDynamic(this, &UPlayerUI::OnReturnToMainMenuClicked);
+    }
+}
+
+void UPlayerUI::OnReturnToMainMenuClicked()
+{
+    UGameplayStatics::OpenLevel(this, FName("MainMenu"));
+}

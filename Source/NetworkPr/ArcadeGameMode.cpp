@@ -6,6 +6,9 @@
 #include "NetworkPrGameInstance.h"
 #include "NetworkPrGameState.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/LocalPlayer.h"
+#include "GameFramework/GameStateBase.h"
+
 
 void AArcadeGameMode::OnPostLogin(AController* NewPlayer)
 {
@@ -37,6 +40,35 @@ void AArcadeGameMode::Logout(AController* Exiting)
 		Subsystem -> SessionInterface->DestroySession(SessionName);
 		GetWorld()->ServerTravel("/Game/Scenes/MainMenu");
 	}
+
+	UGameInstance* GI = GetGameInstance();
+	for (int32 i = GI->GetNumLocalPlayers() - 1; i > 0; --i)
+	{
+		GI->RemoveLocalPlayer(GI->GetLocalPlayerByIndex(i));
+	}
+}
+
+int32 AArcadeGameMode::GetPlayerSlot(AController* Player) const
+{
+	if (!Player) return INDEX_NONE;
+
+	UNetworkPrGameInstance* GI = Cast<UNetworkPrGameInstance>(GetGameInstance());
+	if (!GI) return INDEX_NONE;
+
+	if (GI->CurrentGameMode == EGameSessionMode::LocalCoop)
+	{
+		if (APlayerController* PC = Cast<APlayerController>(Player))
+		{
+			if (ULocalPlayer* LP = PC->GetLocalPlayer())
+			{
+				return LP->GetLocalPlayerIndex() + 1;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	AGameStateBase* GS = GetGameState<AGameStateBase>();
+	return GS ? GS->PlayerArray.Num() : INDEX_NONE;
 }
 
 void AArcadeGameMode::BeginPlay()
@@ -50,7 +82,7 @@ void AArcadeGameMode::BeginPlay()
 
 void AArcadeGameMode::AddSecondLocalPlayer()
 {
-	UGameplayStatics::CreatePlayer(GetWorld(), 1, true);
+	UGameplayStatics::CreatePlayer(GetWorld(), -1, true);
 }
 
 void AArcadeGameMode::TryToStartMatch()
@@ -61,23 +93,6 @@ void AArcadeGameMode::TryToStartMatch()
 	{
 		OnStartMatch.Broadcast();
 		GS -> Multicast_Play();
-
-		// Logging Game Start
-		float GameTime = GetWorld()->GetTimeSeconds();
-
-
-		FString GameMode;
-		UNetworkPrGameInstance* GI = Cast<UNetworkPrGameInstance>(GetGameInstance());
-		if (!GI) return;
-		switch (GI -> CurrentGameMode)
-		{
-		case EGameSessionMode::LocalCoop:
-			GameMode = FString::Printf(TEXT("Local Coop"));
-			break;
-		case EGameSessionMode::NetworkCoop:
-			GameMode = FString::Printf(TEXT("Network Coop"));
-			break;	
-		}
 	}
 	else if (GS && GS->Player1 && !GS->Player2)
 	{
