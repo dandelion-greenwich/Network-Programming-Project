@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.5",
+	"EngineAssociation": "{08223650-412D-BDA4-4AE6-B18812699588}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -24,6 +24,10 @@
 		},
 		{
 			"Name": "OnlineSubsystemSteam",
+			"Enabled": true
+		},
+		{
+			"Name": "GameLiftServerSDK",
 			"Enabled": true
 		}
 	]
