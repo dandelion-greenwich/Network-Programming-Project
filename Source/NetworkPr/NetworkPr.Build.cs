@@ -8,6 +8,24 @@ public class NetworkPr : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "OnlineSubsystem", "OnlineSubsystemSteam", "GameLiftServerSDK"});
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "OnlineSubsystem", "OnlineSubsystemSteam"});
+
+		// The GameLift Server SDK plugin restricts its modules to Server targets
+		// ("TargetAllowList": ["Server"] in the .uplugin), so it can only be depended on there.
+		// For every other target we define WITH_GAMELIFT ourselves, otherwise the plugin's own
+		// definition never reaches us and the #if WITH_GAMELIFT guards in our code would be
+		// compiling against an undefined macro.
+		if (Target.Type == TargetType.Server)
+		{
+			PublicDependencyModuleNames.Add("GameLiftServerSDK");
+
+			// The SDK headers are built with exceptions enabled and require the same of anything
+			// that includes them. Scoped to the server so editor and client builds are unaffected.
+			bEnableExceptions = true;
+		}
+		else
+		{
+			PublicDefinitions.Add("WITH_GAMELIFT=0");
+		}
 	}
 }
