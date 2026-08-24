@@ -3,7 +3,6 @@
 
 #include "MeteorBase.h"
 #include "HealthComponent.h"
-#include "MultiplayerSubsystem.h"
 #include "NetworkPrCharacter.h"
 #include "NetworkPrGameState.h"
 #include "NiagaraFunctionLibrary.h"

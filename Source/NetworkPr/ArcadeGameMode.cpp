@@ -2,7 +2,6 @@
 
 
 #include "ArcadeGameMode.h"
-#include "MultiplayerSubsystem.h"
 #include "NetworkPrGameInstance.h"
 #include "NetworkPrGameState.h"
 #include "Kismet/GameplayStatics.h"
@@ -33,24 +32,11 @@ void AArcadeGameMode::Logout(AController* Exiting)
 {
 	Super::Logout(Exiting);
 	
-	UMultiplayerSubsystem* Subsystem = GetGameInstance()->GetSubsystem<UMultiplayerSubsystem>();
-	// SessionInterface stays null when there is no online subsystem, which is the normal case on
-	// a dedicated server. Dereferencing it below would crash the moment a player disconnects.
-	if (!Subsystem || !Subsystem->SessionInterface.IsValid()) return;
+	// The Steam session cleanup used to be here. GameLift doesn't need it - the server doesn't
+	// own a session to destroy, and it shouldn't go back to the menu either. One process runs
+	// one match and then quits.
 
-	FName SessionName = Subsystem->MySessionName;
-	FNamedOnlineSession* ExistingSession = Subsystem -> SessionInterface->
-		GetNamedSession(SessionName);
-	
-	if (ExistingSession)
-	{
-		FString Msg = FString::Printf(TEXT("Destroying session: %s"),
-		   * SessionName.ToString());
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Cyan, Msg);
-		Subsystem -> SessionInterface->DestroySession(SessionName);
-		GetWorld()->ServerTravel("/Game/Scenes/MainMenu");
-	}
-
+	// Local co-op still needs its extra players removed.
 	UGameInstance* GI = GetGameInstance();
 	for (int32 i = GI->GetNumLocalPlayers() - 1; i > 0; --i)
 	{
@@ -86,8 +72,7 @@ void AArcadeGameMode::BeginPlay()
 	Super::BeginPlay();
 
 #if WITH_GAMELIFT
-	// Only compiled into Server builds, and the game mode only ever exists on the server anyway,
-	// so this can never run on a client.
+	// Server builds only, and game modes only exist on the server, so clients never see this.
 	InitGameLift();
 #endif
 
@@ -104,9 +89,8 @@ void AArcadeGameMode::InitGameLift()
 	FGameLiftServerSDKModule* GameLiftSdkModule =
 		&FModuleManager::LoadModuleChecked<FGameLiftServerSDKModule>(FName("GameLiftServerSDK"));
 
-	// An Anywhere fleet passes the compute's identity on the command line. A managed EC2 fleet
-	// supplies the same values through environment variables, so the struct is left empty there
-	// and the SDK picks them up itself.
+	// Anywhere fleets get their details from the command line. On EC2 they come from environment
+	// variables instead, so we leave this empty and let the SDK find them.
 	FServerParameters ServerParameters;
 
 	if (FParse::Param(FCommandLine::Get(), TEXT("glAnywhere")))
@@ -124,7 +108,7 @@ void AArcadeGameMode::InitGameLift()
 
 		if (!FParse::Value(FCommandLine::Get(), TEXT("glAnywhereProcessId="), ServerParameters.m_processId))
 		{
-			// GameLift needs a process id that is unique per process on the compute
+			// Each process on the machine needs its own id
 			ServerParameters.m_processId = FString::Printf(
 				TEXT("ProcessId_%s"), *FDateTime::UtcNow().ToString(TEXT("%Y%m%d%H%M%S")));
 		}
@@ -134,8 +118,7 @@ void AArcadeGameMode::InitGameLift()
 		UE_LOG(LogGameLift, Log, TEXT("  Host ID:       %s"), *ServerParameters.m_hostId);
 		UE_LOG(LogGameLift, Log, TEXT("  Process ID:    %s"), *ServerParameters.m_processId);
 		UE_LOG(LogGameLift, Log, TEXT("  AWS Region:    %s"), *ServerParameters.m_awsRegion);
-		// Auth token, access key, secret key and session token are deliberately not logged.
-		// GameLift uploads these log files to S3 at the end of a session.
+		// Not logging the token or keys on purpose - GameLift uploads these logs to S3.
 	}
 
 	FGameLiftGenericOutcome InitOutcome = GameLiftSdkModule->InitSDK(ServerParameters);
@@ -148,8 +131,7 @@ void AArcadeGameMode::InitGameLift()
 
 	ProcessParameters = MakeShared<FProcessParameters>();
 
-	// GameLift has placed a game session on this process. Once we are able to accept players,
-	// we tell it so by calling ActivateGameSession.
+	// GameLift gave us a match. Tell it we're ready for players.
 	ProcessParameters->OnStartGameSession.BindLambda(
 		[GameLiftSdkModule](Aws::GameLift::Server::Model::GameSession InGameSession)
 		{
@@ -158,8 +140,7 @@ void AArcadeGameMode::InitGameLift()
 			GameLiftSdkModule->ActivateGameSession();
 		});
 
-	// GameLift is about to shut this process down. One process hosts one game session, so the
-	// process ends here rather than travelling back to the menu the way the Steam path does.
+	// GameLift is shutting us down. This is where the process ends - no travelling back to a menu.
 	ProcessParameters->OnTerminate.BindLambda(
 		[GameLiftSdkModule]()
 		{
@@ -180,15 +161,14 @@ void AArcadeGameMode::InitGameLift()
 			}
 		});
 
-	// Polled roughly every 60 seconds. GameLift assumes false if we do not answer in time.
+	// Asked about once a minute. If we don't answer in time GameLift assumes we're unhealthy.
 	ProcessParameters->OnHealthCheck.BindLambda(
 		[]()
 		{
 			return true;
 		});
 
-	// The port players connect on. -port= on the command line wins, so a fleet can run several
-	// processes on one compute.
+	// The port players connect on. -port= overrides it so one machine can run several servers.
 	ProcessParameters->port = FURL::UrlConfig.DefaultPort;
 	int32 PortOverride = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("port="), PortOverride))
@@ -196,8 +176,8 @@ void AArcadeGameMode::InitGameLift()
 		ProcessParameters->port = PortOverride;
 	}
 
-	// Paths are relative to the root of the packaged server build. GameLift uploads whatever it
-	// finds here to S3 when the session ends, which is how you read the log after the fact.
+	// Relative to the packaged build root. GameLift uploads these to S3 when the match ends,
+	// which is how you read the log afterwards.
 	ProcessParameters->logParameters = TArray<FString>{ TEXT("NetworkPr/Saved/Logs/server.log") };
 
 	UE_LOG(LogGameLift, Log, TEXT("Calling ProcessReady on port %d..."), ProcessParameters->port);

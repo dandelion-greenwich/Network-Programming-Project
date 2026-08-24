@@ -1,261 +1,253 @@
 #include "MultiplayerSubsystem.h"
-#include "Online/OnlineSessionNames.h"
 
-UMultiplayerSubsystem::UMultiplayerSubsystem()
-{
-    // Initialises default state variables for session management
-    CreateServerAfterDestroy = false;
-    DestroyServerName = "";
-    ServerNameTofind = "";
-    MySessionName = FName("NetworkPr Session Name"); // TODO: WRITE A PROPER SESSION
-    
-    OnlineSubSystem = nullptr;
-}
+#include "HttpModule.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonWriter.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/GameInstance.h"
 
 void UMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
-    OnlineSubSystem = IOnlineSubsystem::Get();
-    if (OnlineSubSystem)
+    Super::Initialize(Collection);
+
+    // Subsystems don't load their config properties automatically
+    LoadConfig();
+
+    // No player accounts yet, so a fresh id each run is good enough
+    PlayerId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    if (CreateGameUrl.IsEmpty() || ListGamesUrl.IsEmpty() || JoinGameUrl.IsEmpty())
     {
-#if 1
-       FName SubsystemName = OnlineSubSystem->GetSubsystemName();
-       PrintString("Subsystem name is " + SubsystemName.ToString());
-#endif
-       
-       // Gets the session interface and registers internal delegates 
-       // to handle asynchronous session events such as creation, destruction, 
-       // discovery, and joining.
-       SessionInterface = OnlineSubSystem->GetSessionInterface();
-       if (SessionInterface)
-       {
-          PrintString("Session Interface is valid");
-
-          SessionInterface->OnCreateSessionCompleteDelegates.AddUObject(this,
-             &UMultiplayerSubsystem::OnCreateSessionComplete);
-
-          SessionInterface->OnDestroySessionCompleteDelegates.AddUObject(this,
-             &UMultiplayerSubsystem::OnDestroySessionComplete);
-
-          SessionInterface->OnFindSessionsCompleteDelegates.AddUObject(this,
-             &UMultiplayerSubsystem::OnFindSessionsComplete);
-
-          SessionInterface->OnJoinSessionCompleteDelegates.AddUObject(this,
-             &UMultiplayerSubsystem::OnJoinSessionsComplete);
-       }
+        PrintString("Backend URLs are not set - fill them in DefaultGame.ini");
     }
 }
 
 void UMultiplayerSubsystem::Deinitialize()
 {
-    //UE_LOG(LogTemp, Warning, TEXT("MSS Deinitialize"));
-    //Super::Deinitialize();
+    Super::Deinitialize();
 }
 
-void UMultiplayerSubsystem::PrintString(const FString& String) 
+void UMultiplayerSubsystem::PrintString(const FString& String)
 {
-    if(GEngine)
+    if (GEngine)
        GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Cyan, String);
+}
+
+void UMultiplayerSubsystem::FailWith(const FString& Message, FServerCreateDelegate* CreateDel, FServerJoinDelegate* JoinDel)
+{
+    LastError = Message;
+    PrintString(Message);
+
+    if (CreateDel) CreateDel->Broadcast(false);
+    if (JoinDel)   JoinDel->Broadcast(false);
+}
+
+bool UMultiplayerSubsystem::ParseConnectionInfo(const FString& Json, FString& OutIp, int32& OutPort, FString& OutPlayerSessionId)
+{
+    TSharedPtr<FJsonObject> Root;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Json);
+
+    if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid()) return false;
+
+    return Root->TryGetStringField(TEXT("ipAddress"), OutIp)
+        && Root->TryGetNumberField(TEXT("port"), OutPort)
+        && Root->TryGetStringField(TEXT("playerSessionId"), OutPlayerSessionId);
+}
+
+void UMultiplayerSubsystem::TravelToServer(const FString& Ip, int32 Port, const FString& PlayerSessionId)
+{
+    APlayerController* PC = GetGameInstance() ? GetGameInstance()->GetFirstLocalPlayerController() : nullptr;
+    if (!PC)
+    {
+        PrintString("No local player controller to travel with");
+        return;
+    }
+
+    // Send the player session id with us so the server can check we're allowed in
+    const FString Url = FString::Printf(TEXT("%s:%d?playerSessionId=%s"), *Ip, Port, *PlayerSessionId);
+    PrintString("Travelling to " + Url);
+    PC->ClientTravel(Url, ETravelType::TRAVEL_Absolute);
 }
 
 void UMultiplayerSubsystem::CreateServer(FString ServerName)
 {
-    PrintString("Create Server");
-
     if (ServerName.IsEmpty())
     {
-       PrintString("Server Name cannot be empty");
-       ServerCreateDel.Broadcast(false);
-       return;
+        FailWith(TEXT("Server name cannot be empty"), &ServerCreateDel, nullptr);
+        return;
     }
-    
-    // Checks if a session with this name already exists. If found, it destroys 
-    // the existing session and sets a flag to trigger recreation immediately 
-    // after the destruction process completes.
-    FNamedOnlineSession* ExistingSession = SessionInterface->GetNamedSession(MySessionName);
-    if (ExistingSession)
+    if (CreateGameUrl.IsEmpty())
     {
-       FString Msg = FString::Printf(TEXT("Session with name %s already exists, destroying it"),
-          * MySessionName.ToString());
-       PrintString(Msg);
-       CreateServerAfterDestroy = true;
-       DestroyServerName = ServerName;
-       SessionInterface->DestroySession(MySessionName);
-       return;
+        FailWith(TEXT("CreateGameUrl is not configured"), &ServerCreateDel, nullptr);
+        return;
     }
 
-    // Configures the session settings such as player count and advertising.
-    // Logic specifically checks for the NULL subsystem to enable LAN matches,
-    // while other subsystems (like Steam) will default to internet connections.
-    FOnlineSessionSettings SessionSettings;
-    SessionSettings.bAllowJoinInProgress = true;
-    SessionSettings.bIsDedicated = false;
-    SessionSettings.bShouldAdvertise = true;
-    SessionSettings.NumPublicConnections = 2;
-    SessionSettings.bUseLobbiesIfAvailable = true;
-    SessionSettings.bUsesPresence = true;
-    SessionSettings.bAllowJoinViaPresence = true;
-    
-    bool IsLAN = false;
-    if (OnlineSubSystem->GetSubsystemName() == "NULL")
-    {
-       IsLAN = true; 
-    }
-    SessionSettings.bIsLANMatch = IsLAN; 
-    SessionSettings.Set(FName("SERVER_NAME"), ServerName,
-       EOnlineDataAdvertisementType::ViaOnlineServiceAndPing);
-    
-    SessionInterface->CreateSession(0, MySessionName, SessionSettings);
+    const TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("name"), ServerName);
+    Body->SetStringField(TEXT("playerId"), PlayerId);
+
+    FString Payload;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Payload);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
+
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(CreateGameUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(Payload);
+
+    Request->OnProcessRequestComplete().BindLambda(
+        [this](FHttpRequestPtr, FHttpResponsePtr Response, bool bConnectedOk)
+        {
+            if (!bConnectedOk || !Response.IsValid())
+            {
+                FailWith(TEXT("Could not reach the backend"), &ServerCreateDel, nullptr);
+                return;
+            }
+
+            const FString Content = Response->GetContentAsString();
+            if (Response->GetResponseCode() != 200)
+            {
+                FailWith(FString::Printf(TEXT("Create failed (%d): %s"), Response->GetResponseCode(), *Content),
+                    &ServerCreateDel, nullptr);
+                return;
+            }
+
+            FString Ip, PlayerSessionId;
+            int32 Port = 0;
+            if (!ParseConnectionInfo(Content, Ip, Port, PlayerSessionId))
+            {
+                FailWith(TEXT("Create response was not in the expected shape"), &ServerCreateDel, nullptr);
+                return;
+            }
+
+            ServerCreateDel.Broadcast(true);
+            TravelToServer(Ip, Port, PlayerSessionId);
+        });
+
+    Request->ProcessRequest();
 }
 
-void UMultiplayerSubsystem::FindServer(FString ServerName)
+void UMultiplayerSubsystem::RefreshServerList()
 {
-    PrintString("Find Server");
-
-    if (ServerName.IsEmpty())
+    if (ListGamesUrl.IsEmpty())
     {
-       PrintString("Server Name cannot be empty");
-       ServerJoinDel.Broadcast(false);
-       return;    
+        LastError = TEXT("ListGamesUrl is not configured");
+        PrintString(LastError);
+        ServerListDel.Broadcast(false, TArray<FGameSessionInfo>());
+        return;
     }
 
-    // Initialises the session search object and configures query settings.
-    // Distinguishes between LAN and online queries based on the active subsystem
-    // before executing the search.
-    SessionSearch = MakeShareable(new FOnlineSessionSearch());
-    bool IsLAN = false;
-    if (OnlineSubSystem->GetSubsystemName() == "NULL")
-    {
-       IsLAN = true; 
-    }
-    SessionSearch->bIsLanQuery = IsLAN;
-    SessionSearch->MaxSearchResults = 9999;
-    SessionSearch->QuerySettings.Set(SEARCH_PRESENCE, 
-       true, EOnlineComparisonOp::Equals);
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(ListGamesUrl);
+    Request->SetVerb(TEXT("GET"));
 
-    ServerNameTofind = ServerName;
-    
-    SessionInterface->FindSessions(0, SessionSearch.ToSharedRef());
+    Request->OnProcessRequestComplete().BindLambda(
+        [this](FHttpRequestPtr, FHttpResponsePtr Response, bool bConnectedOk)
+        {
+            TArray<FGameSessionInfo> Sessions;
+
+            if (!bConnectedOk || !Response.IsValid() || Response->GetResponseCode() != 200)
+            {
+                LastError = TEXT("Could not fetch the server list");
+                PrintString(LastError);
+                ServerListDel.Broadcast(false, Sessions);
+                return;
+            }
+
+            TSharedPtr<FJsonObject> Root;
+            const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Response->GetContentAsString());
+            if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+            {
+                LastError = TEXT("Server list was not valid JSON");
+                PrintString(LastError);
+                ServerListDel.Broadcast(false, Sessions);
+                return;
+            }
+
+            const TArray<TSharedPtr<FJsonValue>>* Games = nullptr;
+            if (Root->TryGetArrayField(TEXT("games"), Games) && Games)
+            {
+                for (const TSharedPtr<FJsonValue>& Value : *Games)
+                {
+                    const TSharedPtr<FJsonObject>* Entry = nullptr;
+                    if (!Value.IsValid() || !Value->TryGetObject(Entry) || !Entry) continue;
+
+                    FGameSessionInfo Info;
+                    (*Entry)->TryGetStringField(TEXT("gameSessionId"), Info.GameSessionId);
+                    (*Entry)->TryGetStringField(TEXT("name"), Info.Name);
+                    (*Entry)->TryGetNumberField(TEXT("players"), Info.Players);
+                    (*Entry)->TryGetNumberField(TEXT("maxPlayers"), Info.MaxPlayers);
+                    Sessions.Add(Info);
+                }
+            }
+
+            ServerListDel.Broadcast(true, Sessions);
+        });
+
+    Request->ProcessRequest();
 }
 
-void UMultiplayerSubsystem::OnCreateSessionComplete(FName SessionName, bool WasSuccessful)
+void UMultiplayerSubsystem::JoinServer(const FString& GameSessionId)
 {
-    PrintString(FString::Printf(TEXT("On Create Session Complete: %d"), WasSuccessful));
-    ServerCreateDel.Broadcast(WasSuccessful);
-    
-    // Performs a server travel to the gameplay map upon successful session creation.
-    // The "?listen" parameter ensures the map opens as a listen server.
-    if (WasSuccessful)
+    if (GameSessionId.IsEmpty())
     {
-       FString Path = "/Game/Scenes/ThirdPersonMap?listen";
-
-      if (!GameMapPath.IsEmpty())
-      {
-         Path = FString::Printf(TEXT("%s?Listen"), *GameMapPath);
-      }
-       
-       GetWorld()->ServerTravel(Path); 
+        FailWith(TEXT("No game session selected"), nullptr, &ServerJoinDel);
+        return;
     }
-}
-
-void UMultiplayerSubsystem::OnDestroySessionComplete(FName SessionName, bool WasSuccessful)
-{
-    FString Msg = FString::Printf(TEXT("On Destroy Session Name %s Complete: %d"),
-       *SessionName.ToString(), WasSuccessful);
-    //PrintString(Msg);
-
-    // Checks if a new server creation was requested to occur immediately 
-    // after this destruction, and triggers it if necessary.
-    if (CreateServerAfterDestroy)
+    if (JoinGameUrl.IsEmpty())
     {
-       CreateServerAfterDestroy = false;
-       CreateServer(DestroyServerName);  
+        FailWith(TEXT("JoinGameUrl is not configured"), nullptr, &ServerJoinDel);
+        return;
     }
-}
 
-void UMultiplayerSubsystem::OnFindSessionsComplete(bool WasSuccessful)
-{
-    PrintString(FString::Printf(TEXT("On Find Session Complete: %d"), WasSuccessful));
+    const TSharedPtr<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("gameSessionId"), GameSessionId);
+    Body->SetStringField(TEXT("playerId"), PlayerId);
 
-    if (!WasSuccessful) return;
-    if (ServerNameTofind.IsEmpty()) return;
-    
-    // Iterates through search results to find a session matching the specific 
-    // server name. If a match is found, attempts to join the session; 
-    // otherwise, broadcasts a failure event.
-    TArray<FOnlineSessionSearchResult> Results = SessionSearch->SearchResults;
-    FOnlineSessionSearchResult* CorrectResult = 0;
-    if (Results.Num() > 0)
-    {
-       FString Msg = FString::Printf(TEXT("%d sessions found"), Results.Num());
-       //PrintString(Msg);
+    FString Payload;
+    const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Payload);
+    FJsonSerializer::Serialize(Body.ToSharedRef(), Writer);
 
-       for (FOnlineSessionSearchResult Result : Results)
-       {
-          if (Result.IsValid())
-          {
-             FString ServerName = "No-name";
-             Result.Session.SessionSettings.Get(FName("SERVER_NAME"), ServerName  );
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+    Request->SetURL(JoinGameUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetContentAsString(Payload);
 
-             if (ServerName.Equals(ServerNameTofind))
-             {
-                CorrectResult = &Result;
-                FString Msg2 = FString::Printf(TEXT("Found server with name: %s"), *ServerName);
-                //PrintString(Msg2);
-                break;
-             }
-          }
-       }
-       if (CorrectResult)
-       {
-          CorrectResult->Session.SessionSettings.bUsesPresence = true;
-          CorrectResult->Session.SessionSettings.bUseLobbiesIfAvailable = true;
-          SessionInterface->JoinSession(0, MySessionName, *CorrectResult);
-       }
-       else
-       {
-          PrintString(FString::Printf(TEXT("Couldn't find server with name: %s"), *ServerNameTofind));
-          ServerNameTofind = "";
-          ServerJoinDel.Broadcast(false);
-       }
-    }
-    else
-    {
-       PrintString("Zero sessions found");
-       ServerJoinDel.Broadcast(false);
-    }
-}
+    Request->OnProcessRequestComplete().BindLambda(
+        [this](FHttpRequestPtr, FHttpResponsePtr Response, bool bConnectedOk)
+        {
+            if (!bConnectedOk || !Response.IsValid())
+            {
+                FailWith(TEXT("Could not reach the backend"), nullptr, &ServerJoinDel);
+                return;
+            }
 
-void UMultiplayerSubsystem::OnJoinSessionsComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
-{
-    ServerJoinDel.Broadcast(Result == EOnJoinSessionCompleteResult::Success);
-    
-    // Finalises the connection process. If the join was successful, retrieves 
-    // the connection string (IP address) and instructs the player controller 
-    // to travel to the server.
-    if (Result == EOnJoinSessionCompleteResult::Success)
-    {
-       FString Msg = FString::Printf(TEXT("Succsefully joined session %s"), *SessionName.ToString());
-       //PrintString(Msg);
+            const FString Content = Response->GetContentAsString();
+            if (Response->GetResponseCode() != 200)
+            {
+                // A 409 usually means the game filled up or ended while we were looking at the list
+                FailWith(FString::Printf(TEXT("Join failed (%d): %s"), Response->GetResponseCode(), *Content),
+                    nullptr, &ServerJoinDel);
+                return;
+            }
 
-       FString Adress = "";
-       bool Success = SessionInterface->GetResolvedConnectString(SessionName, Adress);
-       if (Success)
-       {
-          //PrintString(FString::Printf(TEXT("Adress: %s"), *Adress));
-          APlayerController* PlayerController = GetGameInstance()->GetFirstLocalPlayerController();
-          if (PlayerController)
-          {
-             PlayerController->ClientTravel(Adress, TRAVEL_Absolute);
-          }
-       }
-       else
-       {
-          PrintString("GetResolvedConnectString returned false!");
-       }
-    }
-    else
-    {
-       PrintString(FString::Printf(TEXT("On JoinSession Complete Failed, the state is: %s"),
-          LexToString(Result)));
-    }
+            FString Ip, PlayerSessionId;
+            int32 Port = 0;
+            if (!ParseConnectionInfo(Content, Ip, Port, PlayerSessionId))
+            {
+                FailWith(TEXT("Join response was not in the expected shape"), nullptr, &ServerJoinDel);
+                return;
+            }
+
+            ServerJoinDel.Broadcast(true);
+            TravelToServer(Ip, Port, PlayerSessionId);
+        });
+
+    Request->ProcessRequest();
 }

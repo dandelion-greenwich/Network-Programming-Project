@@ -8,7 +8,8 @@ public class NetworkPr : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "OnlineSubsystem", "OnlineSubsystemSteam"});
+		// HTTP and Json replaced Steam - we talk to the GameLift Lambdas instead of a session interface
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "HTTP", "Json"});
 
 		// The GameLift Server SDK plugin restricts its modules to Server targets
 		// ("TargetAllowList": ["Server"] in the .uplugin), so it can only be depended on there.
