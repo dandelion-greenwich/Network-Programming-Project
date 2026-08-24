@@ -9,6 +9,8 @@
 #include "Serialization/JsonWriter.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/GameInstance.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/Paths.h"
 
 void UMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -16,6 +18,28 @@ void UMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
     // Subsystems don't load their config properties automatically
     LoadConfig();
+
+    // The repo is public, so the real endpoint URLs live in Config/LocalEndpoints.ini, which is
+    // gitignored. Anything set there wins over the blank defaults in DefaultGame.ini.
+    const FString LocalIniPath = FPaths::ProjectConfigDir() / TEXT("LocalEndpoints.ini");
+    if (FPaths::FileExists(LocalIniPath))
+    {
+        FConfigFile LocalIni;
+        LocalIni.Read(LocalIniPath);
+
+        auto ApplyOverride = [&LocalIni](const TCHAR* Key, FString& Target)
+        {
+            FString Value;
+            if (LocalIni.GetString(TEXT("Endpoints"), Key, Value) && !Value.IsEmpty())
+            {
+                Target = Value;
+            }
+        };
+
+        ApplyOverride(TEXT("CreateGameUrl"), CreateGameUrl);
+        ApplyOverride(TEXT("ListGamesUrl"), ListGamesUrl);
+        ApplyOverride(TEXT("JoinGameUrl"), JoinGameUrl);
+    }
 
     // No player accounts yet, so a fresh id each run is good enough
     PlayerId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);

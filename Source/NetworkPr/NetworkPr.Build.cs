@@ -8,8 +8,9 @@ public class NetworkPr : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		// HTTP and Json replaced Steam - we talk to the GameLift Lambdas instead of a session interface
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "HTTP", "Json"});
+		// HTTP and Json replaced Steam - we talk to the GameLift Lambdas instead of a session interface.
+		// UMG is listed properly now that we build widgets from C++ rather than only subclassing them.
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "HTTP", "Json", "UMG", "Slate", "SlateCore"});
 
 		// The GameLift Server SDK plugin restricts its modules to Server targets
 		// ("TargetAllowList": ["Server"] in the .uplugin), so it can only be depended on there.
