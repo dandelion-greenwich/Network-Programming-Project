@@ -22,6 +22,9 @@ struct FGameSessionInfo
 	int32 MaxPlayers = 0;
 };
 
+// Everything this class does ends up here. On-screen messages disappear; the log doesn't
+DECLARE_LOG_CATEGORY_EXTERN(LogMultiplayer, Log, All);
+
 // Delegates
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerCreateDelegate, bool, WasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FServerJoinDelegate, bool, WasSuccessful);
@@ -78,6 +81,8 @@ public:
 	FString JoinGameUrl;
 
 private:
+	// Pulls the URLs from LocalEndpoints.ini and the command line, in that order
+	void LoadEndpointOverrides();
 	// Reads ipAddress, port and playerSessionId out of a create or join response
 	bool ParseConnectionInfo(const FString& Json, FString& OutIp, int32& OutPort, FString& OutPlayerSessionId);
 	// Connects to the server, passing the player session id along for it to check

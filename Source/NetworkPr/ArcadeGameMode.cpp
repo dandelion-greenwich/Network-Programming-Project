@@ -17,6 +17,57 @@
 DEFINE_LOG_CATEGORY(LogGameLift);
 
 
+void AArcadeGameMode::PreLogin(const FString& Options, const FString& Address,
+	const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage)
+{
+	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
+
+#if WITH_GAMELIFT
+	// The client puts this on the travel URL after the backend reserved it for them
+	const FString PlayerSessionId = UGameplayStatics::ParseOption(Options, TEXT("playerSessionId"));
+
+	if (PlayerSessionId.IsEmpty())
+	{
+		// Someone connected straight to the IP without going through the backend. Allowed, so
+		// that "open <ip>:<port>" still works while testing, but GameLift won't know about them.
+		UE_LOG(LogGameLift, Warning, TEXT("Player connecting with no player session id"));
+		return;
+	}
+
+	FGameLiftServerSDKModule* Sdk =
+		&FModuleManager::LoadModuleChecked<FGameLiftServerSDKModule>(FName("GameLiftServerSDK"));
+
+	FGameLiftGenericOutcome Outcome = Sdk->AcceptPlayerSession(PlayerSessionId);
+	if (!Outcome.IsSuccess())
+	{
+		// A non-empty error message here is what refuses the connection
+		ErrorMessage = TEXT("Invalid or expired player session");
+		UE_LOG(LogGameLift, Warning, TEXT("Rejected %s: %s"),
+			*PlayerSessionId, *Outcome.GetError().m_errorMessage);
+		return;
+	}
+
+	UE_LOG(LogGameLift, Log, TEXT("Accepted player session %s"), *PlayerSessionId);
+#endif
+}
+
+FString AArcadeGameMode::InitNewPlayer(APlayerController* NewPlayerController,
+	const FUniqueNetIdRepl& UniqueId, const FString& Options, const FString& Portal)
+{
+	const FString Result = Super::InitNewPlayer(NewPlayerController, UniqueId, Options, Portal);
+
+#if WITH_GAMELIFT
+	// PreLogin has the token but no controller yet, so remember the pairing here instead
+	const FString PlayerSessionId = UGameplayStatics::ParseOption(Options, TEXT("playerSessionId"));
+	if (!PlayerSessionId.IsEmpty() && NewPlayerController)
+	{
+		PlayerSessionIds.Add(NewPlayerController, PlayerSessionId);
+	}
+#endif
+
+	return Result;
+}
+
 void AArcadeGameMode::OnPostLogin(AController* NewPlayer)
 {
 	Super::OnPostLogin(NewPlayer);
@@ -35,6 +86,29 @@ void AArcadeGameMode::Logout(AController* Exiting)
 	// The Steam session cleanup used to be here. GameLift doesn't need it - the server doesn't
 	// own a session to destroy, and it shouldn't go back to the menu either. One process runs
 	// one match and then quits.
+
+#if WITH_GAMELIFT
+	// Hand the slot back, otherwise the game keeps counting this player and eventually reports
+	// itself full to everyone else.
+	if (const FString* PlayerSessionId = PlayerSessionIds.Find(Exiting))
+	{
+		FGameLiftServerSDKModule* Sdk =
+			&FModuleManager::LoadModuleChecked<FGameLiftServerSDKModule>(FName("GameLiftServerSDK"));
+
+		FGameLiftGenericOutcome Outcome = Sdk->RemovePlayerSession(*PlayerSessionId);
+		if (Outcome.IsSuccess())
+		{
+			UE_LOG(LogGameLift, Log, TEXT("Released player session %s"), **PlayerSessionId);
+		}
+		else
+		{
+			UE_LOG(LogGameLift, Warning, TEXT("Could not release %s: %s"),
+				**PlayerSessionId, *Outcome.GetError().m_errorMessage);
+		}
+
+		PlayerSessionIds.Remove(Exiting);
+	}
+#endif
 
 	// Local co-op still needs its extra players removed.
 	UGameInstance* GI = GetGameInstance();
@@ -159,6 +233,12 @@ void AArcadeGameMode::InitGameLift()
 				UE_LOG(LogGameLift, Error, TEXT("Destroy failed: %s"),
 					*DestroyOutcome.GetError().m_errorMessage);
 			}
+
+			// GameLift expects the process to actually go away. Without this it hangs around
+			// until GameLift force-kills it, which shows up as SERVER_PROCESS_PROCESS_EXIT_TIMEOUT
+			// in the fleet events and slows down how fast the instance can host the next match.
+			UE_LOG(LogGameLift, Log, TEXT("Shutting the server process down"));
+			FPlatformMisc::RequestExit(false, TEXT("GameLift OnTerminate"));
 		});
 
 	// Asked about once a minute. If we don't answer in time GameLift assumes we're unhealthy.

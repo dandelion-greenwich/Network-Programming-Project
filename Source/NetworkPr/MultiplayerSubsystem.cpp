@@ -11,6 +11,10 @@
 #include "Engine/GameInstance.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
+
+DEFINE_LOG_CATEGORY(LogMultiplayer);
 
 void UMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -18,21 +22,50 @@ void UMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
     // Subsystems don't load their config properties automatically
     LoadConfig();
+    LoadEndpointOverrides();
 
-    // The repo is public, so the real endpoint URLs live in Config/LocalEndpoints.ini, which is
-    // gitignored. Anything set there wins over the blank defaults in DefaultGame.ini.
+    // No player accounts yet, so a fresh id each run is good enough
+    PlayerId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
+
+    UE_LOG(LogMultiplayer, Log, TEXT("Create: %s"), CreateGameUrl.IsEmpty() ? TEXT("(not set)") : *CreateGameUrl);
+    UE_LOG(LogMultiplayer, Log, TEXT("List:   %s"), ListGamesUrl.IsEmpty()  ? TEXT("(not set)") : *ListGamesUrl);
+    UE_LOG(LogMultiplayer, Log, TEXT("Join:   %s"), JoinGameUrl.IsEmpty()   ? TEXT("(not set)") : *JoinGameUrl);
+
+    if (CreateGameUrl.IsEmpty() || ListGamesUrl.IsEmpty() || JoinGameUrl.IsEmpty())
+    {
+        const FString Message = TEXT("Backend URLs are not set - see Config/LocalEndpoints.ini, "
+                                     "or pass -CreateGameUrl= -ListGamesUrl= -JoinGameUrl=");
+        UE_LOG(LogMultiplayer, Error, TEXT("%s"), *Message);
+        PrintString(Message);
+    }
+}
+
+void UMultiplayerSubsystem::LoadEndpointOverrides()
+{
+    // The repo is public, so the real URLs live in Config/LocalEndpoints.ini, which is gitignored.
+    // In the editor this sits in the project. A packaged build has no Config folder unless you
+    // make one next to the exe, which is why the command line below also works.
     const FString LocalIniPath = FPaths::ProjectConfigDir() / TEXT("LocalEndpoints.ini");
     if (FPaths::FileExists(LocalIniPath))
     {
+        UE_LOG(LogMultiplayer, Log, TEXT("Reading endpoints from %s"), *LocalIniPath);
+
         FConfigFile LocalIni;
         LocalIni.Read(LocalIniPath);
 
+        // URLs must be quoted in the ini - Unreal treats // as the start of a comment, so an
+        // unquoted https://host gets cut down to just "https:". Strip the quotes back off here.
         auto ApplyOverride = [&LocalIni](const TCHAR* Key, FString& Target)
         {
             FString Value;
-            if (LocalIni.GetString(TEXT("Endpoints"), Key, Value) && !Value.IsEmpty())
+            if (LocalIni.GetString(TEXT("Endpoints"), Key, Value))
             {
-                Target = Value;
+                Value.TrimQuotesInline();
+                Value.TrimStartAndEndInline();
+                if (!Value.IsEmpty())
+                {
+                    Target = Value;
+                }
             }
         };
 
@@ -40,14 +73,16 @@ void UMultiplayerSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         ApplyOverride(TEXT("ListGamesUrl"), ListGamesUrl);
         ApplyOverride(TEXT("JoinGameUrl"), JoinGameUrl);
     }
-
-    // No player accounts yet, so a fresh id each run is good enough
-    PlayerId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens);
-
-    if (CreateGameUrl.IsEmpty() || ListGamesUrl.IsEmpty() || JoinGameUrl.IsEmpty())
+    else
     {
-        PrintString("Backend URLs are not set - fill them in DefaultGame.ini");
+        UE_LOG(LogMultiplayer, Log, TEXT("No LocalEndpoints.ini at %s"), *LocalIniPath);
     }
+
+    // Command line beats everything. This is the easy way to point a packaged build at the
+    // backend without copying config files around after every package.
+    FParse::Value(FCommandLine::Get(), TEXT("CreateGameUrl="), CreateGameUrl);
+    FParse::Value(FCommandLine::Get(), TEXT("ListGamesUrl="), ListGamesUrl);
+    FParse::Value(FCommandLine::Get(), TEXT("JoinGameUrl="), JoinGameUrl);
 }
 
 void UMultiplayerSubsystem::Deinitialize()
@@ -64,6 +99,7 @@ void UMultiplayerSubsystem::PrintString(const FString& String)
 void UMultiplayerSubsystem::FailWith(const FString& Message, FServerCreateDelegate* CreateDel, FServerJoinDelegate* JoinDel)
 {
     LastError = Message;
+    UE_LOG(LogMultiplayer, Error, TEXT("%s"), *Message);
     PrintString(Message);
 
     if (CreateDel) CreateDel->Broadcast(false);
@@ -93,6 +129,7 @@ void UMultiplayerSubsystem::TravelToServer(const FString& Ip, int32 Port, const 
 
     // Send the player session id with us so the server can check we're allowed in
     const FString Url = FString::Printf(TEXT("%s:%d?playerSessionId=%s"), *Ip, Port, *PlayerSessionId);
+    UE_LOG(LogMultiplayer, Log, TEXT("Travelling to %s"), *Url);
     PrintString("Travelling to " + Url);
     PC->ClientTravel(Url, ETravelType::TRAVEL_Absolute);
 }
@@ -161,6 +198,7 @@ void UMultiplayerSubsystem::RefreshServerList()
     if (ListGamesUrl.IsEmpty())
     {
         LastError = TEXT("ListGamesUrl is not configured");
+        UE_LOG(LogMultiplayer, Error, TEXT("%s"), *LastError);
         PrintString(LastError);
         ServerListDel.Broadcast(false, TArray<FGameSessionInfo>());
         return;
@@ -178,6 +216,8 @@ void UMultiplayerSubsystem::RefreshServerList()
             if (!bConnectedOk || !Response.IsValid() || Response->GetResponseCode() != 200)
             {
                 LastError = TEXT("Could not fetch the server list");
+                UE_LOG(LogMultiplayer, Error, TEXT("%s (connected=%d, code=%d)"), *LastError,
+                    bConnectedOk ? 1 : 0, Response.IsValid() ? Response->GetResponseCode() : -1);
                 PrintString(LastError);
                 ServerListDel.Broadcast(false, Sessions);
                 return;
@@ -188,6 +228,7 @@ void UMultiplayerSubsystem::RefreshServerList()
             if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
             {
                 LastError = TEXT("Server list was not valid JSON");
+                UE_LOG(LogMultiplayer, Error, TEXT("%s: %s"), *LastError, *Response->GetContentAsString());
                 PrintString(LastError);
                 ServerListDel.Broadcast(false, Sessions);
                 return;
